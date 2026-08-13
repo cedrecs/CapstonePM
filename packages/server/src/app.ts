@@ -14,6 +14,8 @@ export interface AppDeps {
   discordClientId: string
   discordClientSecret: string
   oauth?: DiscordOAuthClient
+  /** DEV ONLY: enables /auth/dev to mint a session without Discord. */
+  devAuth?: boolean
 }
 
 declare module 'fastify' {
@@ -87,6 +89,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     })
     return reply.redirect(parsed.redirect.startsWith('/') ? parsed.redirect : '/')
   })
+
+  if (deps.devAuth) {
+    // Local development bypass (DEV_AUTH=1): /auth/dev?guild=g&role=member
+    app.get('/auth/dev', async (req, reply) => {
+      const { guild, role, name } = req.query as { guild?: string; role?: string; name?: string }
+      if (!guild) return reply.code(400).send({ error: 'guild required' })
+      const session: Session = {
+        userId: 'dev-user',
+        userName: name ?? 'Dev User',
+        guildId: guild,
+        role: (['admin', 'member', 'advisor', 'sponsor'].includes(role ?? '') ? role : 'admin') as Session['role']
+      }
+      const token = await signSession(session, deps.jwtSecret)
+      reply.setCookie(SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax' })
+      return reply.redirect(`/g/${guild}/p`)
+    })
+  }
 
   app.post('/auth/logout', async (_req, reply) => {
     reply.clearCookie(SESSION_COOKIE, { path: '/' })
