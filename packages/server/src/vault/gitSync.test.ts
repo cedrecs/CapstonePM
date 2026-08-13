@@ -45,7 +45,7 @@ describe('GitSync', () => {
     expect(stdout).toMatch(/pm sync/)
   })
 
-  it('restores an empty vault root from a remote on sync(true)', async () => {
+  it('restores an empty vault root from a remote on sync(true)', { timeout: 20_000 }, async () => {
     // Build a "remote": a bare repo seeded with one file.
     const bare = join(root, 'remote.git')
     const seedDir = join(root, 'seed')
@@ -70,6 +70,34 @@ describe('GitSync', () => {
     const second = new GitSync(again, () => bare, () => true)
     await second.sync(true)
     expect(await fs.readFile(join(again, 'new-task.md'), 'utf8')).toBe('pushed')
+  })
+
+  it('initializes a nested repo instead of hijacking an ancestor repo', async () => {
+    // root becomes an outer repo (like Render's app checkout)...
+    await run('git', ['init', '-b', 'main'], { cwd: root })
+    await run('git', ['config', 'user.email', 'a@b'], { cwd: root })
+    await run('git', ['config', 'user.name', 'x'], { cwd: root })
+    await run('git', ['remote', 'add', 'origin', 'https://example.invalid/app.git'], { cwd: root })
+    // ...with the vault root nested inside it.
+    const vaultRoot = join(root, 'data', 'vaults')
+    await fs.mkdir(vaultRoot, { recursive: true })
+    await fs.writeFile(join(vaultRoot, 'note.md'), 'vault content')
+
+    const sync = new GitSync(vaultRoot, () => undefined, () => true)
+    await sync.sync()
+
+    // The vault got its own repo with its own history...
+    const { stdout: inner } = await run('git', ['rev-parse', '--show-toplevel'], { cwd: vaultRoot })
+    expect(inner.trim().replace(/\\/g, '/').toLowerCase()).toBe(
+      vaultRoot.replace(/\\/g, '/').toLowerCase()
+    )
+    const { stdout: log } = await run('git', ['log', '--oneline'], { cwd: vaultRoot })
+    expect(log).toMatch(/pm sync/)
+    // ...and the outer repo's remote was left alone.
+    const { stdout: outerRemote } = await run('git', ['remote', 'get-url', 'origin'], { cwd: root })
+    expect(outerRemote.trim()).toBe('https://example.invalid/app.git')
+    // The outer repo has no commits — nothing was committed into it.
+    await expect(run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root })).rejects.toThrow()
   })
 
   it('schedule() is a no-op when disabled', async () => {

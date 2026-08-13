@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
@@ -32,10 +33,17 @@ export class GitSync {
     return run('git', args, { cwd: this.root })
   }
 
+  /**
+   * True only when `root` is itself a repo top-level. A bare --git-dir probe
+   * would also match an ANCESTOR repo (e.g. the app checkout containing
+   * data/vaults), and every command would then operate on that repo —
+   * rewriting its origin and pushing the app's history to the vault remote.
+   */
   private async isRepo(): Promise<boolean> {
     try {
-      await this.git('rev-parse', '--git-dir')
-      return true
+      const { stdout } = await this.git('rev-parse', '--show-toplevel')
+      const norm = (p: string): string => p.trim().replace(/\\/g, '/').toLowerCase()
+      return norm(stdout) === norm(resolve(this.root))
     } catch {
       return false
     }
