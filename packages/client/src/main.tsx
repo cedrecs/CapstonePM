@@ -6,6 +6,7 @@ import { GuildLayout } from './pages/GuildLayout'
 import { Landing } from './pages/Landing'
 import { ProjectPage } from './pages/ProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { SettingsPage } from './pages/SettingsPage'
 import './styles.css'
 
 const queryClient = new QueryClient({
@@ -23,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="p" element={<ProjectsPage />} />
             <Route path="p/:projectId" element={<ProjectPage />} />
             <Route path="p/:projectId/t/:taskId" element={<ProjectPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

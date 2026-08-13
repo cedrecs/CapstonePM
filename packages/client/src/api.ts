@@ -52,7 +52,34 @@ export const api = {
   deleteTasks: (pid: string, taskIds: string[], rev?: number) =>
     request<{ rev: number }>('POST', `/api/projects/${pid}/tasks/delete`, { taskIds, rev }),
   bulkPatch: (pid: string, taskIds: string[], patch: Partial<Task>, rev?: number) =>
-    request<{ rev: number }>('POST', `/api/projects/${pid}/tasks/bulk`, { taskIds, patch, rev })
+    request<{ rev: number }>('POST', `/api/projects/${pid}/tasks/bulk`, { taskIds, patch, rev }),
+  settings: () => request<GuildSettings>('GET', '/api/settings'),
+  updateSettings: (patch: Partial<GuildSettings>) =>
+    request<GuildSettings>('PATCH', '/api/settings', patch)
+}
+
+export type AppRole = Session['role']
+
+export interface GuildSettings {
+  version: 1
+  pm: {
+    projectsFolder: string
+    globalTeamMembers: string[]
+    statuses: { id: string; label: string; color: string; icon: string; complete: boolean }[]
+    priorities: { id: string; label: string; color: string; icon: string }[]
+    autoSchedule: boolean
+    pullForwardOnEarlyFinish: boolean
+    notificationsEnabled: boolean
+    notificationLeadDays: number
+    kanbanShowSubtasks: boolean
+    kanbanShowDescriptionPreview: boolean
+    [key: string]: unknown
+  }
+  discord: {
+    roleMap: Record<string, AppRole>
+    userMap: Record<string, string>
+    channelBindings: Record<string, string>
+  }
 }
 
 /** Live vault changes for the current guild; reconnects with backoff. */

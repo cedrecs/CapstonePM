@@ -298,6 +298,25 @@ select:focus {
   }
 }
 
+.settings-section {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.settings-section h3 {
+  margin-top: 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .error-banner {
   background: color-mix(in srgb, var(--danger) 20%, transparent);
   border: 1px solid var(--danger);

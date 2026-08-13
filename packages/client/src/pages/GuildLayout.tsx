@@ -25,6 +25,11 @@ export function GuildLayout() {
           📋 PM
         </Link>
         <span className="spacer" />
+        {me.data?.role === 'admin' && (
+          <Link to={`/g/${guildId}/settings`} className="muted" title="Settings">
+            ⚙️
+          </Link>
+        )}
         {me.data && (
           <span className="muted">
             {me.data.userName} · {me.data.role}
