@@ -250,6 +250,54 @@ select:focus {
   font-size: 12px;
 }
 
+.gantt-toolbar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.gantt-wrap {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+
+.gantt-labels {
+  flex: 0 0 auto;
+  border-right: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.gantt-label {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.gantt-scroll {
+  overflow-x: auto;
+  flex: 1;
+}
+
+.gantt-scroll svg {
+  display: block;
+  touch-action: none;
+}
+
+@media (max-width: 640px) {
+  .gantt-labels {
+    flex-basis: 140px;
+  }
+}
+
 .error-banner {
   background: color-mix(in srgb, var(--danger) 20%, transparent);
   border: 1px solid var(--danger);

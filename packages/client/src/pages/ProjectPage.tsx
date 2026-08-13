@@ -13,6 +13,7 @@ import {
   makeId
 } from '@pm/shared'
 import { api, ApiError } from '../api'
+import { GanttView } from '../views/GanttView'
 import { KanbanView } from '../views/KanbanView'
 import { TableView, type SortKey } from '../views/TableView'
 
@@ -144,13 +145,13 @@ export function ProjectPage() {
           {p.icon} {p.title}
         </h2>
         <div className="view-switcher">
-          {(['table', 'kanban'] as ViewMode[]).map((mode) => (
+          {(['table', 'kanban', 'gantt'] as ViewMode[]).map((mode) => (
             <button
               key={mode}
               className={activeView === mode ? 'primary' : ''}
               onClick={() => setViewMode(mode)}
             >
-              {mode === 'table' ? 'Table' : 'Kanban'}
+              {mode === 'table' ? 'Table' : mode === 'kanban' ? 'Kanban' : 'Gantt'}
             </button>
           ))}
         </div>
@@ -280,7 +281,14 @@ export function ProjectPage() {
         </form>
       )}
 
-      {activeView === 'kanban' ? (
+      {activeView === 'gantt' ? (
+        <GanttView
+          tasks={filteredTree}
+          statuses={statuses}
+          canWrite={canWrite}
+          onPatchTask={(tid, patch) => patchTask.mutate({ tid, patch })}
+        />
+      ) : activeView === 'kanban' ? (
         <KanbanView
           tasks={filteredTree}
           statuses={statuses}
