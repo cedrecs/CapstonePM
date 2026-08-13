@@ -26,6 +26,7 @@ interface TableViewProps {
   onBulk: (ids: string[], patch: Partial<Task>) => void
   onBulkArchive: (ids: string[], archived: boolean) => void
   onBulkDelete: (ids: string[]) => void
+  onOpenTask: (tid: string) => void
 }
 
 export function TableView({
@@ -41,10 +42,10 @@ export function TableView({
   onPatchTask,
   onBulk,
   onBulkArchive,
-  onBulkDelete
+  onBulkDelete,
+  onOpenTask
 }: TableViewProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [editingTitle, setEditingTitle] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(`pm-collapsed-${projectId}`) ?? '[]') as string[])
@@ -204,7 +205,6 @@ export function TableView({
         <tbody>
           {rows.map(({ task, depth }) => {
             const st = statuses.find((s) => s.id === task.status)
-            const isEditing = editingTitle === task.id
             return (
               <tr key={task.id} style={task.archived ? { opacity: 0.55 } : undefined}>
                 {canWrite && (
@@ -237,28 +237,9 @@ export function TableView({
                     </button>
                   )}
                   {task.type === 'milestone' ? '◆ ' : ''}
-                  {isEditing ? (
-                    <input
-                      autoFocus
-                      defaultValue={task.title}
-                      onBlur={(e) => {
-                        setEditingTitle(null)
-                        const title = e.target.value.trim()
-                        if (title && title !== task.title) onPatchTask(task.id, { title })
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                        if (e.key === 'Escape') setEditingTitle(null)
-                      }}
-                    />
-                  ) : (
-                    <span
-                      onDoubleClick={canWrite ? () => setEditingTitle(task.id) : undefined}
-                      title={canWrite ? 'Double-click to rename' : undefined}
-                    >
-                      {task.title}
-                    </span>
-                  )}
+                  <span className="task-title-link" onClick={() => onOpenTask(task.id)} title="Open task">
+                    {task.title}
+                  </span>
                   {task.archived && <span className="badge muted"> archived</span>}
                 </td>
                 <td>

@@ -6,6 +6,7 @@ import {
   addTaskToTree,
   cloneTaskSubtree,
   computeSchedule,
+  wouldCreateCycle,
   deleteTaskFromTree,
   findParentId,
   findTaskById,
@@ -47,6 +48,13 @@ export interface VaultChange {
   type: 'project.created' | 'project.updated' | 'project.deleted' | 'settings.updated'
   projectId?: string
   rev?: number
+}
+
+export class DependencyCycleError extends Error {
+  constructor(taskId: string, depId: string) {
+    super(`dependency ${depId} would create a cycle for task ${taskId}`)
+    this.name = 'DependencyCycleError'
+  }
 }
 
 export class RevConflictError extends Error {
@@ -462,6 +470,15 @@ export class GuildVault extends EventEmitter {
       if (!task) throw new Error(`unknown task ${taskId}`)
       // Tree shape changes go through moveTask/reorderTask/deleteTasks.
       delete (patch as Record<string, unknown>).subtasks
+      if (patch.dependencies) {
+        const existing = new Set(task.dependencies)
+        for (const dep of patch.dependencies) {
+          if (existing.has(dep)) continue
+          if (dep === taskId || wouldCreateCycle(project.tasks, taskId, dep)) {
+            throw new DependencyCycleError(taskId, dep)
+          }
+        }
+      }
       const oldTitle = task.title
       this.stampCompletion(project, task, patch)
       const completionMoved = this.completionMoved(task, patch)

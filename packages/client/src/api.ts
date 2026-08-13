@@ -53,6 +53,14 @@ export const api = {
     request<{ rev: number }>('POST', `/api/projects/${pid}/tasks/delete`, { taskIds, rev }),
   bulkPatch: (pid: string, taskIds: string[], patch: Partial<Task>, rev?: number) =>
     request<{ rev: number }>('POST', `/api/projects/${pid}/tasks/bulk`, { taskIds, patch, rev }),
+  addTimeLog: (pid: string, tid: string, log: { date: string; hours: number; note: string }, rev?: number) =>
+    request<{ rev: number }>('POST', `/api/projects/${pid}/tasks/${tid}/timelogs`, { ...log, rev }),
+  duplicateTask: (pid: string, tid: string, includeSubtasks: boolean, rev?: number) =>
+    request<{ task: Task; rev: number }>('POST', `/api/projects/${pid}/tasks/${tid}/duplicate`, {
+      includeSubtasks,
+      rev
+    }),
+  deleteProject: (pid: string) => request<{ ok: boolean }>('DELETE', `/api/projects/${pid}`),
   settings: () => request<GuildSettings>('GET', '/api/settings'),
   updateSettings: (patch: Partial<GuildSettings>) =>
     request<GuildSettings>('PATCH', '/api/settings', patch)

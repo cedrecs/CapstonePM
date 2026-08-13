@@ -317,6 +317,110 @@ select:focus {
   margin-bottom: 8px;
 }
 
+.task-title-link {
+  cursor: pointer;
+}
+
+.task-title-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(480px, 100vw);
+  background: var(--bg-raised);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.task-editor {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.task-editor-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.task-editor-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field > span {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field-row .field {
+  flex: 0 1 auto;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.chip-x {
+  border: none;
+  background: none;
+  padding: 0 0 0 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.time-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.time-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.time-logs {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.task-editor-actions {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
 .error-banner {
   background: color-mix(in srgb, var(--danger) 20%, transparent);
   border: 1px solid var(--danger);

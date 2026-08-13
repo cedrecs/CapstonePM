@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parseFrontmatter } from '@pm/shared'
-import { GuildVault, RevConflictError } from './GuildVault'
+import { DependencyCycleError, GuildVault, RevConflictError } from './GuildVault'
 
 let root: string
 let vault: GuildVault
@@ -147,6 +147,23 @@ describe('task lifecycle', () => {
     const trash = await fs.readdir(join(root, 'guild-1', '.trash'))
     expect(trash.some((f) => f.endsWith('parent.md'))).toBe(true)
     expect(trash.some((f) => f.endsWith('child.md'))).toBe(true)
+  })
+
+  it('refuses dependency cycles, including self-dependency', async () => {
+    const project = await vault.createProject('P')
+    const { task: a } = await vault.insertTask(project.id, { title: 'A' })
+    const { task: b } = await vault.insertTask(project.id, { title: 'B', dependencies: [a.id] })
+    const { task: c } = await vault.insertTask(project.id, { title: 'C', dependencies: [b.id] })
+    // a -> b -> c exists; making a depend on c closes the loop.
+    await expect(vault.updateTask(project.id, a.id, { dependencies: [c.id] })).rejects.toThrow(
+      DependencyCycleError
+    )
+    await expect(vault.updateTask(project.id, a.id, { dependencies: [a.id] })).rejects.toThrow(
+      DependencyCycleError
+    )
+    // A legal dependency still goes through.
+    const { task: d } = await vault.insertTask(project.id, { title: 'D' })
+    await expect(vault.updateTask(project.id, a.id, { dependencies: [d.id] })).resolves.toBeGreaterThan(0)
   })
 
   it('appends time logs', async () => {

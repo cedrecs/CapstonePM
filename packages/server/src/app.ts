@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import type { Project, ProjectPatch, Task, TimeLog } from '@pm/shared'
 import { canWriteTasks, discordOAuth, isAdmin, resolveAppRole, type DiscordOAuthClient } from './auth/discord'
 import { signOAuthState, signSession, verifyOAuthState, verifySession, type Session } from './auth/jwt'
-import { RevConflictError } from './vault/GuildVault'
+import { DependencyCycleError, RevConflictError } from './vault/GuildVault'
 import { TaskFileNameConflictError } from './vault/paths'
 import type { VaultManager } from './vault/VaultManager'
 
@@ -137,6 +137,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     }
     if (err instanceof TaskFileNameConflictError) {
       return reply.code(409).send({ error: 'file-conflict', fileName: err.fileName })
+    }
+    if (err instanceof DependencyCycleError) {
+      return reply.code(409).send({ error: 'dependency-cycle', message: err.message })
     }
     const message = err instanceof Error ? err.message : String(err)
     if (message.startsWith('unknown project') || message.startsWith('unknown task')) {

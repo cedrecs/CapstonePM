@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import type { FilterState, SavedView, Task, ViewMode } from '@pm/shared'
 import {
   applyTaskFilterPromote,
@@ -9,16 +9,20 @@ import {
   countActiveFilters,
   DEFAULT_PRIORITIES,
   DEFAULT_STATUSES,
+  findTask,
   makeDefaultFilter,
   makeId
 } from '@pm/shared'
 import { api, ApiError } from '../api'
+import { ProjectSettings } from '../components/ProjectSettings'
+import { TaskEditor } from '../components/TaskEditor'
 import { GanttView } from '../views/GanttView'
 import { KanbanView } from '../views/KanbanView'
 import { TableView, type SortKey } from '../views/TableView'
 
 export function ProjectPage() {
-  const { projectId } = useParams()
+  const { guildId, projectId, taskId } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const me = useQuery({ queryKey: ['me'], queryFn: api.me })
   const project = useQuery({
@@ -35,6 +39,8 @@ export function ProjectPage() {
   const [showSubtaskCards, setShowSubtaskCards] = useState(false)
   const [quickTitle, setQuickTitle] = useState('')
   const [conflict, setConflict] = useState(false)
+  const [cycleError, setCycleError] = useState(false)
+  const [showProjectSettings, setShowProjectSettings] = useState(false)
 
   const canWrite = me.data?.role === 'admin' || me.data?.role === 'member'
   const p = project.data
@@ -52,13 +58,16 @@ export function ProjectPage() {
   const refetch = () => queryClient.invalidateQueries({ queryKey: ['project', projectId] })
   const onMutationError = (e: unknown) => {
     if (e instanceof ApiError && e.status === 409) {
-      setConflict(true)
+      const kind = (e.body as { error?: string } | null)?.error
+      if (kind === 'dependency-cycle') setCycleError(true)
+      else setConflict(true)
       void refetch()
     }
   }
   const mutationOpts = {
     onSuccess: () => {
       setConflict(false)
+      setCycleError(false)
       void refetch()
     },
     onError: onMutationError
@@ -92,6 +101,27 @@ export function ProjectPage() {
     mutationFn: (ids: string[]) => api.deleteTasks(projectId!, ids, p?.rev),
     ...mutationOpts
   })
+  const addLog = useMutation({
+    mutationFn: ({ tid, log }: { tid: string; log: { date: string; hours: number; note: string } }) =>
+      api.addTimeLog(projectId!, tid, log, p?.rev),
+    ...mutationOpts
+  })
+  const duplicate = useMutation({
+    mutationFn: (tid: string) => api.duplicateTask(projectId!, tid, true, p?.rev),
+    ...mutationOpts
+  })
+  const patchProject = useMutation({
+    mutationFn: (patch: Record<string, unknown>) => api.updateProject(projectId!, patch, p?.rev),
+    ...mutationOpts
+  })
+  const deleteProject = useMutation({
+    mutationFn: () => api.deleteProject(projectId!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['projects'] })
+      navigate(`/g/${guildId}/p`)
+    },
+    onError: onMutationError
+  })
   const saveViews = useMutation({
     mutationFn: (savedViews: SavedView[]) => api.updateProject(projectId!, { savedViews }, p?.rev),
     ...mutationOpts
@@ -99,6 +129,12 @@ export function ProjectPage() {
 
   if (project.isLoading) return <div className="page muted">Loading…</div>
   if (!p) return <div className="page muted">Project not found.</div>
+
+  const openTask = taskId ? findTask(p.tasks, taskId) : null
+  const closeTask = (): void => {
+    setCycleError(false)
+    navigate(`/g/${guildId}/p/${projectId}`)
+  }
 
   const applyView = (view: SavedView | null): void => {
     setActiveViewId(view?.id ?? null)
@@ -154,6 +190,11 @@ export function ProjectPage() {
               {mode === 'table' ? 'Table' : mode === 'kanban' ? 'Kanban' : 'Gantt'}
             </button>
           ))}
+          {canWrite && (
+            <button onClick={() => setShowProjectSettings(true)} title="Project settings">
+              ⚙
+            </button>
+          )}
         </div>
       </div>
 
@@ -313,7 +354,43 @@ export function ProjectPage() {
           onBulk={(ids, patch) => bulk.mutate({ ids, patch })}
           onBulkArchive={(ids, archived) => bulkArchive.mutate({ ids, archived })}
           onBulkDelete={(ids) => bulkDelete.mutate(ids)}
+          onOpenTask={(tid) => navigate(`/g/${guildId}/p/${projectId}/t/${tid}`)}
         />
+      )}
+
+      {openTask && (
+        <div className="drawer">
+          <TaskEditor
+            task={openTask}
+            allTasks={p.tasks}
+            customFields={p.customFields}
+            statuses={statuses}
+            priorities={priorities}
+            assigneeOptions={assigneeOptions}
+            canWrite={canWrite}
+            cycleError={cycleError}
+            onPatch={(patch) => patchTask.mutate({ tid: openTask.id, patch })}
+            onAddTimeLog={(log) => addLog.mutate({ tid: openTask.id, log })}
+            onArchive={(archived) => bulkArchive.mutate({ ids: [openTask.id], archived })}
+            onDuplicate={() => duplicate.mutate(openTask.id)}
+            onDelete={() => {
+              bulkDelete.mutate([openTask.id])
+              closeTask()
+            }}
+            onClose={closeTask}
+          />
+        </div>
+      )}
+
+      {showProjectSettings && (
+        <div className="drawer">
+          <ProjectSettings
+            project={p}
+            onPatch={(patch) => patchProject.mutate(patch)}
+            onDeleteProject={me.data?.role === 'admin' ? () => deleteProject.mutate() : null}
+            onClose={() => setShowProjectSettings(false)}
+          />
+        </div>
       )}
     </div>
   )
