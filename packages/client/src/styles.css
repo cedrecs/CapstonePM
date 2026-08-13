@@ -168,6 +168,38 @@ select:focus {
   color: var(--text-dim);
 }
 
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.filter-bar .spacer {
+  flex: 1;
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  background: var(--bg-raised);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.collapse-btn {
+  background: none;
+  border: none;
+  padding: 0 6px 0 0;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
 .error-banner {
   background: color-mix(in srgb, var(--danger) 20%, transparent);
   border: 1px solid var(--danger);
