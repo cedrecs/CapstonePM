@@ -37,17 +37,12 @@ export function attachWebSocket(server: Server, vaults: VaultManager, jwtSecret:
         set.add(ws)
         ws.on('close', () => set.delete(ws))
         // Ensure the vault is open so its change events flow.
-        void vaults.get(session.guildId).then((vault) => {
-          if (!subscribedVaults.has(vault)) {
-            subscribedVaults.add(vault)
-            vault.on('change', broadcast)
-          }
-        })
+        void vaults.get(session.guildId)
       })
     })()
   })
 
-  const subscribedVaults = new WeakSet<object>()
+  vaults.on('change', broadcast)
 
   function broadcast(change: VaultChange): void {
     const sockets = guildSockets.get(change.guildId)

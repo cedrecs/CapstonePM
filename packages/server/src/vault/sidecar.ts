@@ -20,9 +20,16 @@ export interface GuildSettings {
     roleMap: Record<string, AppRole>
     /** Discord user id -> assignee name as it appears in task frontmatter. */
     userMap: Record<string, string>
-    /** Project id -> channel id for the live status embed + notifications. */
-    channelBindings: Record<string, string>
+    /** Project id -> bound channel + the live embed message to keep editing. */
+    channelBindings: Record<string, ChannelBinding>
+    /** Task id -> last date a due reminder was posted, so restarts don't re-ping. */
+    remindedAt?: Record<string, string>
   }
+}
+
+export interface ChannelBinding {
+  channelId: string
+  messageId?: string
 }
 
 const SIDECAR_FILE = 'pm-settings.json'

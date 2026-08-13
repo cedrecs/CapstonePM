@@ -1,4 +1,5 @@
 import { buildApp } from './app'
+import { PmBot } from './bot/bot'
 import { env } from './env'
 import { VaultManager } from './vault/VaultManager'
 import { attachWebSocket } from './ws'
@@ -23,6 +24,23 @@ async function main(): Promise<void> {
   attachWebSocket(app.server, vaults, jwtSecret)
   console.log(`[pm] listening on ${env.host}:${env.port} (${env.publicUrl})`)
 
+  let bot: PmBot | null = null
+  if (env.discord.botToken && env.discord.clientId) {
+    bot = new PmBot({
+      vaults,
+      token: env.discord.botToken,
+      clientId: env.discord.clientId,
+      publicUrl: env.publicUrl
+    })
+    console.log(`[bot] invite the bot to a server: ${bot.inviteUrl()}`)
+    bot.start().catch((e) => {
+      console.error('[bot] failed to start (server keeps running):', e)
+      bot = null
+    })
+  } else {
+    console.log('[bot] DISCORD_BOT_TOKEN not set — bot disabled')
+  }
+
   // Drain the write queue before exit — required for clean deploys/reboots.
   let shuttingDown = false
   const shutdown = (signal: string): void => {
@@ -31,6 +49,7 @@ async function main(): Promise<void> {
     console.log(`[pm] ${signal} received; draining write queues...`)
     void (async () => {
       try {
+        if (bot) await bot.stop()
         await app.close()
         await vaults.drainAll()
         console.log('[pm] clean shutdown')
