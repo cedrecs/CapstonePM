@@ -24,13 +24,17 @@ export interface DiscordOAuthClient {
 
 export const discordOAuth: DiscordOAuthClient = {
   authorizeUrl(clientId, redirectUri, state) {
+    // No `prompt` param: this is the primary login link, so Discord must be
+    // free to show its login/consent UI on first use. `prompt=none` forces a
+    // silent-only exchange that errors out unless this exact device/session
+    // already carries a valid Discord session AND prior consent — it broke
+    // login on any browser without that pre-existing state.
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: OAUTH_SCOPES,
-      state,
-      prompt: 'none'
+      state
     })
     return `https://discord.com/oauth2/authorize?${params}`
   },
