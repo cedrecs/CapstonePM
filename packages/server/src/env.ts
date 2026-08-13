@@ -1,4 +1,9 @@
-import 'dotenv/config'
+import { resolve } from 'node:path'
+import { config } from 'dotenv'
+
+// Load the nearest .env: package cwd first, then the repo root (dev runs
+// launch from packages/server; production provides real env vars instead).
+config({ path: [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')], quiet: true })
 
 function required(name: string): string {
   const v = process.env[name]

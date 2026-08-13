@@ -200,6 +200,56 @@ select:focus {
   cursor: pointer;
 }
 
+.view-switcher {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.kanban-board {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.kanban-col {
+  flex: 0 0 240px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 120px;
+}
+
+.kanban-col-head {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.kanban-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.kanban-card .card-title {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.kanban-card .card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
 .error-banner {
   background: color-mix(in srgb, var(--danger) 20%, transparent);
   border: 1px solid var(--danger);

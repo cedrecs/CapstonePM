@@ -4,11 +4,12 @@ import { VaultManager } from './vault/VaultManager'
 import { attachWebSocket } from './ws'
 
 const devAuth = process.env.DEV_AUTH === '1'
+const jwtSecret = env.jwtSecret || (devAuth ? 'dev-secret-do-not-use' : '')
 const vaults = new VaultManager(env.vaultRoot)
 
 const app = buildApp({
   vaults,
-  jwtSecret: env.jwtSecret || (devAuth ? 'dev-secret-do-not-use' : ''),
+  jwtSecret,
   publicUrl: env.publicUrl,
   discordClientId: env.discord.clientId,
   discordClientSecret: env.discord.clientSecret,
@@ -19,7 +20,7 @@ async function main(): Promise<void> {
   if (!devAuth) env.assertProduction()
   else console.warn('[pm] DEV_AUTH=1 — Discord login bypass enabled; never use in production')
   await app.listen({ port: env.port, host: env.host })
-  attachWebSocket(app.server, vaults, env.jwtSecret)
+  attachWebSocket(app.server, vaults, jwtSecret)
   console.log(`[pm] listening on ${env.host}:${env.port} (${env.publicUrl})`)
 
   // Drain the write queue before exit — required for clean deploys/reboots.
