@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Reference checkout (cloned locally, never committed)
+reference/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data (vaults live outside the repo in prod; keep dev data out too)
+data/
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
