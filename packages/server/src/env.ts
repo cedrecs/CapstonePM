@@ -17,6 +17,13 @@ export const env = {
   host: process.env.HOST ?? '0.0.0.0',
   publicUrl: process.env.PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`,
   vaultRoot: process.env.VAULT_ROOT ?? './data/vaults',
+  /**
+   * Ephemeral-disk mode (Render free tier): a git remote holding the whole
+   * vault root. Restored on boot; every write commits+pushes on a short
+   * debounce. The remote, not the disk, is the durable store.
+   */
+  vaultSyncRemote: process.env.VAULT_SYNC_REMOTE || undefined,
+  vaultSyncDebounceMs: Number(process.env.VAULT_SYNC_DEBOUNCE_MS ?? 10_000),
   jwtSecret: process.env.JWT_SECRET ?? '',
   discord: {
     clientId: process.env.DISCORD_CLIENT_ID ?? '',

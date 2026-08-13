@@ -3,6 +3,12 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
+/** git errors put the useful text on stderr; surface it in one log line. */
+function gitError(e: unknown): string {
+  const err = e as { message?: string; stderr?: string }
+  return (err.stderr?.trim() || err.message || String(e)).split('\n').join(' | ')
+}
+
 /**
  * Optional per-guild git sync: the guild's vault directory becomes its own git
  * repo. Auto-commit is debounced ~30s after the last write; push happens when
@@ -16,7 +22,8 @@ export class GitSync {
   constructor(
     private root: string,
     private getRemote: () => string | undefined,
-    private getEnabled: () => boolean
+    private getEnabled: () => boolean,
+    private debounceMs = GitSync.DEBOUNCE_MS
   ) {}
 
   static readonly DEBOUNCE_MS = 30_000
@@ -57,39 +64,59 @@ export class GitSync {
     this.timer = setTimeout(() => {
       this.timer = null
       void this.sync().catch((e) => console.error('[git] auto-commit failed', e))
-    }, GitSync.DEBOUNCE_MS)
+    }, this.debounceMs)
   }
 
-  /** Serialize sync operations; pull (rebase) first when asked, then commit+push. */
-  sync(pullFirst = false): Promise<void> {
+  /**
+   * Serialize sync operations: commit local state, optionally rebase on the
+   * remote, push. Committing before the pull keeps the rebase clean and makes
+   * this safe as a boot-restore on an empty directory (the pull then fast-
+   * forwards to the remote's content).
+   */
+  sync(pull = false): Promise<void> {
     const work = async (): Promise<void> => {
       await this.ensureRepo()
       const remote = this.getRemote()
-      if (pullFirst && remote) {
+      const tryPull = async (): Promise<void> => {
         try {
           await this.git('pull', '--rebase', 'origin', 'main')
         } catch (e) {
           // First sync has no upstream yet; later failures are surfaced in the log.
-          console.warn('[git] pull skipped:', e instanceof Error ? e.message.split('\n')[0] : e)
+          console.warn('[git] pull skipped:', gitError(e))
         }
       }
+      // An unborn branch must pull before anything touches the index: even a
+      // no-op `git add` leaves an index file that makes the pull refuse
+      // ("Updating an unborn branch with changes added to the index").
+      const unborn = !(await this.hasCommits())
+      if (pull && remote && unborn) await tryPull()
       await this.git('add', '-A')
       try {
         await this.git('commit', '-m', `pm sync ${new Date().toISOString()}`)
       } catch {
         // nothing to commit
       }
+      if (pull && remote && !unborn) await tryPull()
       if (remote) {
         try {
           await this.git('push', '-u', 'origin', 'main')
         } catch (e) {
-          console.error('[git] push failed:', e instanceof Error ? e.message.split('\n')[0] : e)
+          console.error('[git] push failed:', gitError(e))
         }
       }
     }
     const next = this.chain.then(work, work)
     this.chain = next.catch(() => {})
     return next
+  }
+
+  private async hasCommits(): Promise<boolean> {
+    try {
+      await this.git('rev-parse', '--verify', 'HEAD')
+      return true
+    } catch {
+      return false
+    }
   }
 
   /** Run any pending debounced commit now; called on graceful shutdown. */

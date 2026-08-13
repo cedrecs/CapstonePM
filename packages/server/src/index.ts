@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import { buildApp } from './app'
 import { PmBot } from './bot/bot'
 import { env } from './env'
+import { GitSync } from './vault/gitSync'
 import { VaultManager } from './vault/VaultManager'
 import { attachWebSocket } from './ws'
 
@@ -22,9 +23,22 @@ const app = buildApp({
   clientDist
 })
 
+// Ephemeral-disk mode: the vault root itself syncs to one remote.
+const rootSync = env.vaultSyncRemote
+  ? new GitSync(env.vaultRoot, () => env.vaultSyncRemote, () => true, env.vaultSyncDebounceMs)
+  : null
+if (rootSync) vaults.on('change', () => rootSync.schedule())
+
 async function main(): Promise<void> {
   if (!devAuth) env.assertProduction()
   else console.warn('[pm] DEV_AUTH=1 — Discord login bypass enabled; never use in production')
+  if (rootSync) {
+    console.log('[git] restoring vault root from VAULT_SYNC_REMOTE...')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(env.vaultRoot, { recursive: true })
+    await rootSync.sync(true)
+    console.log('[git] vault root restored')
+  }
   await app.listen({ port: env.port, host: env.host })
   attachWebSocket(app.server, vaults, jwtSecret)
   console.log(`[pm] listening on ${env.host}:${env.port} (${env.publicUrl})`)
@@ -57,6 +71,7 @@ async function main(): Promise<void> {
         if (bot) await bot.stop()
         await app.close()
         await vaults.drainAll()
+        if (rootSync) await rootSync.flush()
         console.log('[pm] clean shutdown')
         process.exit(0)
       } catch (e) {

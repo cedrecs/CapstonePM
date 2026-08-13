@@ -45,6 +45,33 @@ describe('GitSync', () => {
     expect(stdout).toMatch(/pm sync/)
   })
 
+  it('restores an empty vault root from a remote on sync(true)', async () => {
+    // Build a "remote": a bare repo seeded with one file.
+    const bare = join(root, 'remote.git')
+    const seedDir = join(root, 'seed')
+    await fs.mkdir(seedDir)
+    await run('git', ['init', '--bare', '-b', 'main', bare])
+    await fs.writeFile(join(seedDir, 'vault-file.md'), 'from remote')
+    const seed = new GitSync(seedDir, () => bare, () => true)
+    await seed.sync()
+
+    // Fresh empty dir (Render boot): sync(true) pulls the remote's content.
+    const fresh = join(root, 'fresh')
+    await fs.mkdir(fresh)
+    const restore = new GitSync(fresh, () => bare, () => true)
+    await restore.sync(true)
+    expect(await fs.readFile(join(fresh, 'vault-file.md'), 'utf8')).toBe('from remote')
+
+    // And local writes flow back to the remote for the next boot.
+    await fs.writeFile(join(fresh, 'new-task.md'), 'pushed')
+    await restore.sync()
+    const again = join(root, 'again')
+    await fs.mkdir(again)
+    const second = new GitSync(again, () => bare, () => true)
+    await second.sync(true)
+    expect(await fs.readFile(join(again, 'new-task.md'), 'utf8')).toBe('pushed')
+  })
+
   it('schedule() is a no-op when disabled', async () => {
     const sync = new GitSync(root, () => undefined, () => false)
     sync.schedule()

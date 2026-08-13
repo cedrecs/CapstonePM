@@ -1,20 +1,22 @@
+# Free-tier blueprint: no persistent disk — the vault root is restored from a
+# private git remote at boot (VAULT_SYNC_REMOTE) and pushed on every write.
+# Upgrading later: set plan: starter, add the disk block back (mountPath /data,
+# VAULT_ROOT=/data/vaults), and VAULT_SYNC_REMOTE becomes optional backup.
 services:
   - type: web
     name: capstone-pm
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @pm/client build
     startCommand: pnpm --filter @pm/server start
     healthCheckPath: /healthz
-    disk:
-      name: vaults
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: '24'
       - key: VAULT_ROOT
-        value: /data/vaults
+        value: ./data/vaults
+      - key: VAULT_SYNC_REMOTE
+        sync: false # https://<github-username>:<fine-grained-PAT>@github.com/<user>/capstone-pm-vaults.git
       - key: PUBLIC_URL
         sync: false # set to https://<service>.onrender.com after first deploy
       - key: JWT_SECRET
