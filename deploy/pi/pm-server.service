@@ -1,0 +1,19 @@
+[Unit]
+Description=PM for Discord server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pm
+WorkingDirectory=/opt/capstone-pm/packages/server
+EnvironmentFile=/opt/capstone-pm/.env
+ExecStart=/usr/bin/env pnpm --filter @pm/server start
+Restart=on-failure
+RestartSec=5
+# Give the write queue and git flush time to drain on stop.
+TimeoutStopSec=45
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

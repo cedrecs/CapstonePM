@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { buildApp } from './app'
 import { PmBot } from './bot/bot'
 import { env } from './env'
@@ -8,13 +9,17 @@ const devAuth = process.env.DEV_AUTH === '1'
 const jwtSecret = env.jwtSecret || (devAuth ? 'dev-secret-do-not-use' : '')
 const vaults = new VaultManager(env.vaultRoot)
 
+const clientDist =
+  process.env.CLIENT_DIST ?? resolve(process.cwd(), '..', 'client', 'dist')
+
 const app = buildApp({
   vaults,
   jwtSecret,
   publicUrl: env.publicUrl,
   discordClientId: env.discord.clientId,
   discordClientSecret: env.discord.clientSecret,
-  devAuth
+  devAuth,
+  clientDist
 })
 
 async function main(): Promise<void> {

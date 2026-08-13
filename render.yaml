@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: capstone-pm
+    runtime: node
+    plan: starter
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm --filter @pm/client build
+    startCommand: pnpm --filter @pm/server start
+    healthCheckPath: /healthz
+    disk:
+      name: vaults
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: VAULT_ROOT
+        value: /data/vaults
+      - key: PUBLIC_URL
+        sync: false # set to https://<service>.onrender.com after first deploy
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false

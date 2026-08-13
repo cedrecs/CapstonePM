@@ -15,6 +15,12 @@ export interface GuildSettings {
   version: 1
   /** Global PM settings (statuses, priorities, scheduling flags, ...). */
   pm: PMSettings
+  /** Optional git sync: set a remote to enable auto-commit + push. */
+  git?: {
+    remote?: string
+    /** Force auto-commit on/off; defaults to on when a remote is set. */
+    autoCommit?: boolean
+  }
   discord: {
     /** Discord role id -> app role. Checked in descending privilege order. */
     roleMap: Record<string, AppRole>
@@ -50,7 +56,8 @@ export async function loadGuildSettings(guildRoot: string): Promise<GuildSetting
     return {
       version: 1,
       pm: { ...base.pm, ...(parsed.pm ?? {}) },
-      discord: { ...base.discord, ...(parsed.discord ?? {}) }
+      discord: { ...base.discord, ...(parsed.discord ?? {}) },
+      ...(parsed.git ? { git: parsed.git } : {})
     }
   } catch {
     return defaultGuildSettings()

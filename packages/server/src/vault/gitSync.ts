@@ -1,0 +1,104 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const run = promisify(execFile)
+
+/**
+ * Optional per-guild git sync: the guild's vault directory becomes its own git
+ * repo. Auto-commit is debounced ~30s after the last write; push happens when
+ * a remote is configured. This doubles as offsite backup and the Obsidian
+ * bridge (clone the repo into a vault).
+ */
+export class GitSync {
+  private timer: NodeJS.Timeout | null = null
+  private chain: Promise<unknown> = Promise.resolve()
+
+  constructor(
+    private root: string,
+    private getRemote: () => string | undefined,
+    private getEnabled: () => boolean
+  ) {}
+
+  static readonly DEBOUNCE_MS = 30_000
+
+  private git(...args: string[]) {
+    return run('git', args, { cwd: this.root })
+  }
+
+  private async isRepo(): Promise<boolean> {
+    try {
+      await this.git('rev-parse', '--git-dir')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async ensureRepo(): Promise<void> {
+    if (!(await this.isRepo())) {
+      await this.git('init', '-b', 'main')
+      await this.git('config', 'user.name', 'PM for Discord')
+      await this.git('config', 'user.email', 'pm-bot@localhost')
+    }
+    const remote = this.getRemote()
+    if (remote) {
+      try {
+        await this.git('remote', 'add', 'origin', remote)
+      } catch {
+        await this.git('remote', 'set-url', 'origin', remote)
+      }
+    }
+  }
+
+  /** Debounced auto-commit after a vault write. No-op when sync is disabled. */
+  schedule(): void {
+    if (!this.getEnabled()) return
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = setTimeout(() => {
+      this.timer = null
+      void this.sync().catch((e) => console.error('[git] auto-commit failed', e))
+    }, GitSync.DEBOUNCE_MS)
+  }
+
+  /** Serialize sync operations; pull (rebase) first when asked, then commit+push. */
+  sync(pullFirst = false): Promise<void> {
+    const work = async (): Promise<void> => {
+      await this.ensureRepo()
+      const remote = this.getRemote()
+      if (pullFirst && remote) {
+        try {
+          await this.git('pull', '--rebase', 'origin', 'main')
+        } catch (e) {
+          // First sync has no upstream yet; later failures are surfaced in the log.
+          console.warn('[git] pull skipped:', e instanceof Error ? e.message.split('\n')[0] : e)
+        }
+      }
+      await this.git('add', '-A')
+      try {
+        await this.git('commit', '-m', `pm sync ${new Date().toISOString()}`)
+      } catch {
+        // nothing to commit
+      }
+      if (remote) {
+        try {
+          await this.git('push', '-u', 'origin', 'main')
+        } catch (e) {
+          console.error('[git] push failed:', e instanceof Error ? e.message.split('\n')[0] : e)
+        }
+      }
+    }
+    const next = this.chain.then(work, work)
+    this.chain = next.catch(() => {})
+    return next
+  }
+
+  /** Run any pending debounced commit now; called on graceful shutdown. */
+  async flush(): Promise<void> {
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+      await this.sync().catch((e) => console.error('[git] flush failed', e))
+    }
+    await this.chain
+  }
+}

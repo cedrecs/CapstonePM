@@ -39,10 +39,10 @@ export class VaultManager extends EventEmitter {
     return out
   }
 
-  /** Drain every open vault's write queue; called on graceful shutdown. */
+  /** Drain write queues and flush pending git commits; called on graceful shutdown. */
   async drainAll(): Promise<void> {
     for (const vault of await this.openVaults()) {
-      await vault.drain()
+      await vault.shutdown()
     }
   }
 }

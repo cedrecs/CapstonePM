@@ -33,6 +33,7 @@ import {
   updateTaskInTree
 } from '@pm/shared'
 import { atomicWrite, ensureDir, exists } from './fsAtomic'
+import { GitSync } from './gitSync'
 import {
   normalizePath,
   projectTaskFolder,
@@ -87,6 +88,7 @@ export class GuildVault extends EventEmitter {
   private revs = new Map<string, number>()
   private queue: Promise<unknown> = Promise.resolve()
   settings: GuildSettings
+  readonly gitSync: GitSync
 
   private constructor(
     readonly guildId: string,
@@ -95,6 +97,24 @@ export class GuildVault extends EventEmitter {
   ) {
     super()
     this.settings = settings
+    this.gitSync = new GitSync(
+      root,
+      () => this.settings.git?.remote,
+      () => this.settings.git?.autoCommit ?? !!this.settings.git?.remote
+    )
+  }
+
+  /** Admin-triggered: pull from the remote, re-scan the vault, commit+push. */
+  async syncWithRemote(): Promise<void> {
+    await this.gitSync.sync(true)
+    await this.enqueue(async () => {
+      await this.loadAll()
+      for (const id of this.projects.keys()) this.bumpRev(id)
+    })
+    this.emitChange({ type: 'settings.updated' })
+    for (const id of this.projects.keys()) {
+      this.emitChange({ type: 'project.updated', projectId: id, rev: this.rev(id) })
+    }
   }
 
   static async open(guildId: string, vaultRoot: string): Promise<GuildVault> {
@@ -362,11 +382,12 @@ export class GuildVault extends EventEmitter {
     return project
   }
 
-  /** Common tail of every mutation: save, bump, emit. */
+  /** Common tail of every mutation: save, bump, emit, schedule git commit. */
   private async commit(project: Project, dirty: Iterable<string>): Promise<number> {
     await this.saveProject(project, dirty)
     const rev = this.bumpRev(project.id)
     this.emitChange({ type: 'project.updated', projectId: project.id, rev })
+    this.gitSync.schedule()
     return rev
   }
 
@@ -705,13 +726,21 @@ export class GuildVault extends EventEmitter {
 
   async updateSettings(patch: Partial<GuildSettings>): Promise<void> {
     return this.enqueue(async () => {
+      const git = patch.git !== undefined ? patch.git : this.settings.git
       this.settings = {
         version: 1,
         pm: { ...this.settings.pm, ...(patch.pm ?? {}) },
-        discord: { ...this.settings.discord, ...(patch.discord ?? {}) }
+        discord: { ...this.settings.discord, ...(patch.discord ?? {}) },
+        ...(git ? { git } : {})
       }
       await saveGuildSettings(this.root, this.settings)
       this.emitChange({ type: 'settings.updated' })
     })
+  }
+
+  /** Flush pending writes and any pending git commit; called on shutdown. */
+  async shutdown(): Promise<void> {
+    await this.drain()
+    await this.gitSync.flush()
   }
 }
