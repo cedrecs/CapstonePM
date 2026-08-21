@@ -4,7 +4,14 @@ import cookie from '@fastify/cookie'
 import fastifyStatic from '@fastify/static'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import type { Project, ProjectPatch, Task, TimeLog } from '@pm/shared'
-import { canWriteTasks, discordOAuth, isAdmin, resolveAppRole, type DiscordOAuthClient } from './auth/discord'
+import {
+  canWriteTasks,
+  discordOAuth,
+  hasGuildManageAccess,
+  isAdmin,
+  resolveAppRole,
+  type DiscordOAuthClient
+} from './auth/discord'
 import { signOAuthState, signSession, verifyOAuthState, verifySession, type Session } from './auth/jwt'
 import { DependencyCycleError, RevConflictError } from './vault/GuildVault'
 import { TaskFileNameConflictError } from './vault/paths'
@@ -90,7 +97,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!member) return reply.code(403).send({ error: 'not a member of this server' })
 
     const vault = await deps.vaults.get(parsed.guildId)
-    const role = resolveAppRole(member.roles, vault.settings)
+    let role = resolveAppRole(member.roles, vault.settings)
+
+    // Bootstrap: a brand-new guild has an empty role map, so everyone
+    // defaults to 'member' and nobody can ever reach Settings to fix that —
+    // a permanent deadlock. Break it by trusting whoever already runs the
+    // Discord server (its owner, or anyone with Administrator/Manage Server)
+    // as admin for as long as nobody has configured any mapping yet. The
+    // first thing that admin should do is map a real role to Admin in
+    // Settings; once any mapping exists, this bootstrap stops applying.
+    if (role !== 'admin' && Object.keys(vault.settings.discord.roleMap).length === 0) {
+      const summary = await oauth.fetchGuildSummary(accessToken, parsed.guildId)
+      if (summary && hasGuildManageAccess(summary)) role = 'admin'
+    }
+
     const session: Session = {
       userId: user.id,
       userName: member.nick ?? user.global_name ?? user.username,

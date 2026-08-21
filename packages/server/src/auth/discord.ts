@@ -14,12 +14,21 @@ export interface DiscordMember {
   nick?: string | null
 }
 
+/** The subset of `/users/@me/guilds` needed to decide bootstrap admin access. */
+export interface DiscordGuildSummary {
+  owner: boolean
+  /** Decimal permission bitfield, as a string (Discord returns it as one). */
+  permissions: string
+}
+
 /** Injectable so tests never hit Discord. */
 export interface DiscordOAuthClient {
   authorizeUrl(clientId: string, redirectUri: string, state: string): string
   exchangeCode(code: string, redirectUri: string, clientId: string, clientSecret: string): Promise<string>
   fetchUser(accessToken: string): Promise<DiscordUser>
   fetchMember(accessToken: string, guildId: string): Promise<DiscordMember | null>
+  /** Null if the user isn't in that guild (shouldn't happen once fetchMember succeeded). */
+  fetchGuildSummary(accessToken: string, guildId: string): Promise<DiscordGuildSummary | null>
 }
 
 export const discordOAuth: DiscordOAuthClient = {
@@ -71,7 +80,38 @@ export const discordOAuth: DiscordOAuthClient = {
     if (res.status === 404) return null // not a member of that guild
     if (!res.ok) throw new Error(`fetch member failed: ${res.status}`)
     return (await res.json()) as DiscordMember
+  },
+
+  async fetchGuildSummary(accessToken, guildId) {
+    // No single-guild endpoint carries owner/permissions for the calling user;
+    // they only appear in the full `/users/@me/guilds` listing.
+    const res = await fetch(`${DISCORD_API}/users/@me/guilds`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+    if (!res.ok) throw new Error(`fetch guilds failed: ${res.status}`)
+    const guilds = (await res.json()) as { id: string; owner: boolean; permissions: string }[]
+    const match = guilds.find((g) => g.id === guildId)
+    return match ? { owner: match.owner, permissions: match.permissions } : null
   }
+}
+
+const PERMISSION_ADMINISTRATOR = 0x8n
+const PERMISSION_MANAGE_GUILD = 0x20n
+
+/**
+ * Whether this Discord member effectively runs the server — its owner, or
+ * holds Administrator/Manage Server — independent of any role mapping we've
+ * configured. Used only to bootstrap the very first admin of a guild.
+ */
+export function hasGuildManageAccess(summary: DiscordGuildSummary): boolean {
+  if (summary.owner) return true
+  let bits: bigint
+  try {
+    bits = BigInt(summary.permissions)
+  } catch {
+    return false
+  }
+  return (bits & PERMISSION_ADMINISTRATOR) !== 0n || (bits & PERMISSION_MANAGE_GUILD) !== 0n
 }
 
 const ROLE_RANK: Record<AppRole, number> = { admin: 3, member: 2, advisor: 1, sponsor: 0 }
