@@ -13,6 +13,7 @@ import {
   type DiscordOAuthClient
 } from './auth/discord'
 import { signOAuthState, signSession, verifyOAuthState, verifySession, type Session } from './auth/jwt'
+import { ensureStarterProject, seedStarterProjectContent } from './onboarding'
 import { DependencyCycleError, RevConflictError } from './vault/GuildVault'
 import { TaskFileNameConflictError } from './vault/paths'
 import type { VaultManager } from './vault/VaultManager'
@@ -109,6 +110,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (role !== 'admin' && Object.keys(vault.settings.discord.roleMap).length === 0) {
       const summary = await oauth.fetchGuildSummary(accessToken, parsed.guildId)
       if (summary && hasGuildManageAccess(summary)) role = 'admin'
+    }
+
+    // First admin visit to an empty guild: seed a starter project so the
+    // app shows real, interactive content instead of "No projects yet."
+    // Never let a seeding hiccup block the login that triggered it.
+    if (role === 'admin' && vault.projects.size === 0) {
+      try {
+        const { project, created } = await ensureStarterProject(vault)
+        if (created) await seedStarterProjectContent(vault, project)
+      } catch (e) {
+        console.error('[onboarding] starter project seed failed', e)
+      }
     }
 
     const session: Session = {

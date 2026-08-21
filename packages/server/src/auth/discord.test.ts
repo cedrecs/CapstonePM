@@ -126,3 +126,62 @@ describe('login callback: bootstrap admin for a brand-new guild', () => {
     expect(role).toBe('admin')
   })
 })
+
+describe('login callback: seeds a starter project on first admin visit', () => {
+  const SECRET = 'test-secret'
+  const GUILD = 'brand-new-guild'
+
+  let root: string
+  let vaults: VaultManager
+  let app: FastifyInstance
+
+  const mockOAuth: DiscordOAuthClient = {
+    authorizeUrl: (clientId, redirectUri, state) => `https://discord.com/oauth2/authorize?state=${state}`,
+    exchangeCode: async () => 'fake-access-token',
+    fetchUser: async (): Promise<DiscordUser> => ({ id: 'user-1', username: 'tester' }),
+    fetchMember: async () => ({ roles: [] }),
+    fetchGuildSummary: async () => ({ owner: true, permissions: '0' })
+  }
+
+  beforeEach(async () => {
+    root = await fs.mkdtemp(join(tmpdir(), 'pm-onboarding-login-'))
+    vaults = new VaultManager(root)
+    app = buildApp({
+      vaults,
+      jwtSecret: SECRET,
+      publicUrl: 'http://localhost:3000',
+      discordClientId: 'cid',
+      discordClientSecret: 'csecret',
+      oauth: mockOAuth
+    })
+  })
+
+  afterEach(async () => {
+    await app.close()
+    await vaults.drainAll()
+    await fs.rm(root, { recursive: true, force: true })
+  })
+
+  async function loginAndListProjects(): Promise<{ id: string; title: string; taskCount: number }[]> {
+    const loginRes = await app.inject({ method: 'GET', url: `/auth/login?guild=${GUILD}` })
+    const state = new URL(loginRes.headers.location as string).searchParams.get('state')
+    const callbackRes = await app.inject({ method: 'GET', url: `/auth/callback?code=abc&state=${state}` })
+    const setCookie = callbackRes.headers['set-cookie']
+    const cookie = (Array.isArray(setCookie) ? setCookie[0] : setCookie) as string
+    const listRes = await app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } })
+    return listRes.json()
+  }
+
+  it('the bootstrap admin sees one populated project instead of a blank list', async () => {
+    const projects = await loginAndListProjects()
+    expect(projects).toHaveLength(1)
+    expect(projects[0].title).toBe('Getting Started')
+    expect(projects[0].taskCount).toBeGreaterThan(0)
+  })
+
+  it('does not reseed on a second login once a project exists', async () => {
+    await loginAndListProjects()
+    const projects = await loginAndListProjects()
+    expect(projects).toHaveLength(1)
+  })
+})

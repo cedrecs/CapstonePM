@@ -11,6 +11,7 @@ import {
 import type { Project, Task } from '@pm/shared'
 import { flattenTasks, isTerminalStatus } from '@pm/shared'
 import { resolveAppRole, canWriteTasks } from '../auth/discord'
+import { ensureStarterProject } from '../onboarding'
 import type { GuildVault } from '../vault/GuildVault'
 import type { VaultManager } from '../vault/VaultManager'
 import {
@@ -450,7 +451,22 @@ export class PmBot {
         await interaction.reply({ content: 'Your role is read-only.', ephemeral: true })
         return
       }
-      const project = this.resolveProject(vault, interaction)
+      let project = this.resolveProject(vault, interaction)
+      let bootstrapped = false
+      if (!project && vault.projects.size === 0) {
+        // Nothing exists in this guild yet at all — don't dead-end someone's
+        // very first command. Bind the new project to this channel too, so
+        // the next /pm add here just works.
+        const result = await ensureStarterProject(vault)
+        project = result.project
+        bootstrapped = true
+        await vault.updateSettings({
+          discord: {
+            ...vault.settings.discord,
+            channelBindings: { ...vault.settings.discord.channelBindings, [project.id]: { channelId: interaction.channelId } }
+          }
+        })
+      }
       if (!project) {
         await interaction.reply({
           content: 'No project bound to this channel — pass the project option or run /pm dashboard first.',
@@ -460,8 +476,11 @@ export class PmBot {
       }
       const title = interaction.options.getString('title', true)
       const { task } = await vault.insertTask(project.id, { title })
+      const link = deepLink(this.deps.publicUrl, vault.guildId, project.id, task.id)
       await interaction.reply(
-        `Added **[${task.title}](${deepLink(this.deps.publicUrl, vault.guildId, project.id, task.id)})** to ${project.title}.`
+        bootstrapped
+          ? `Started **${project.title}** and added **[${task.title}](${link})**.`
+          : `Added **[${task.title}](${link})** to ${project.title}.`
       )
       return
     }
